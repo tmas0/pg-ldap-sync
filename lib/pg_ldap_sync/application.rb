@@ -12,7 +12,7 @@ begin
 rescue LoadError => e
   begin
     require 'postgres'
-    class PGconn
+    class PG::Connection
       alias initialize_before_hash_change initialize
       def initialize(*args)
         arg = args.first
@@ -149,7 +149,7 @@ class Application
     groups = []
     res = pg_exec "SELECT rolname, oid FROM pg_roles WHERE #{pg_groups_conf[:filter]}"
     res.each do |tuple|
-      res2 = pg_exec "SELECT pr.rolname FROM pg_auth_members pam JOIN pg_roles pr ON pr.oid=pam.member WHERE pam.roleid=#{PGconn.escape(tuple[1])}"
+      res2 = pg_exec "SELECT pr.rolname FROM pg_auth_members pam JOIN pg_roles pr ON pr.oid=pam.member WHERE pam.roleid=#{PG::Connection.escape(tuple[1])}"
       member_names = res2.map{|row| row[0] }
       group = PgRole.new tuple[0], member_names
       log.info{ "found pg-group: #{group.name.inspect} with members: #{member_names.inspect}"}
@@ -214,12 +214,12 @@ class Application
   def pg_exec_modify(sql)
     log.info{ "SQL: #{sql}" }
     unless self.test
-      res = @pgconn.exec sql
+      res = @PG::Connection.exec sql
     end
   end
 
   def pg_exec(sql)
-    res = @pgconn.exec sql
+    res = @PG::Connection.exec sql
     (0...res.num_tuples).map{|t| (0...res.num_fields).map{|i| res.getvalue(t, i) } }
   end
 
@@ -314,7 +314,7 @@ class Application
     ldap_groups = uniq_names search_ldap_groups
 
     # gather PGs users and groups
-    @pgconn = PGconn.connect @config[:pg_connection]
+    @PG::Connection = PG::Connection.connect @config[:pg_connection]
     pg_users = uniq_names search_pg_users
     pg_groups = uniq_names search_pg_groups
 
@@ -332,7 +332,7 @@ class Application
     sync_roles_to_pg(mroles, :create)
     sync_membership_to_pg(mmemberships, :grant)
 
-    @pgconn.close
+    @PG::Connection.close
   end
 
   def self.run(argv)
