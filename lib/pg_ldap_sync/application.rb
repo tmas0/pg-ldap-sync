@@ -214,12 +214,12 @@ class Application
   def pg_exec_modify(sql)
     log.info{ "SQL: #{sql}" }
     unless self.test
-      res = @PG::Connection.exec sql
+      res = @pgconn.exec sql
     end
   end
 
   def pg_exec(sql)
-    res = @PG::Connection.exec sql
+    res = @pgconn.exec sql
     (0...res.num_tuples).map{|t| (0...res.num_fields).map{|i| res.getvalue(t, i) } }
   end
 
@@ -314,7 +314,7 @@ class Application
     ldap_groups = uniq_names search_ldap_groups
 
     # gather PGs users and groups
-    @PG::Connection = PG::Connection.connect @config[:pg_connection]
+    @pgconn = PG::Connection.connect @config[:pg_connection]
     pg_users = uniq_names search_pg_users
     pg_groups = uniq_names search_pg_groups
 
@@ -332,7 +332,7 @@ class Application
     sync_roles_to_pg(mroles, :create)
     sync_membership_to_pg(mmemberships, :grant)
 
-    @PG::Connection.close
+    @pgconn.close
   end
 
   def self.run(argv)
