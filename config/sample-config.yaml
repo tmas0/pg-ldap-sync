@@ -23,12 +23,18 @@ ldap_users:
 
 # Search parameters for LDAP groups which should be synchronized
 ldap_groups:
-  base: OU=company,OU=company,DC=company,DC=de
-  filter: (|(cn=group1)(cn=group2)(cn=group3))
-  # this attribute is used as PG role name
-  name_attribute: cn
-  # this attribute must reference to all member DN's of the given group
-  member_attribute: member
+  - base: OU=company,OU=company,DC=company,DC=de
+    filter: (|(cn=group1)(cn=group2)(cn=group3))
+    # this attribute is used as PG role name
+    name_attribute: cn
+    # this attribute must reference to all member DN's of the given group
+    member_attribute: member
+  - base: OU=company,OU=company1,DC=company1,DC=de
+    filter: (|(cn=group4)(cn=group5)(cn=group6))
+    # this attribute is used as PG role name
+    name_attribute: cn
+    # this attribute must reference to all member DN's of the given group
+    member_attribute: member
 
 # Connection parameters to PostgreSQL server
 # see also: http://rubydoc.info/gems/pg/PG/Connection#initialize-instance_method

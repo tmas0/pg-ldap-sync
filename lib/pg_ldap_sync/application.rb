@@ -12,7 +12,7 @@ begin
 rescue LoadError => e
   begin
     require 'postgres'
-    class PGconn
+    class PG
       alias initialize_before_hash_change initialize
       def initialize(*args)
         arg = args.first
@@ -105,22 +105,25 @@ class Application
     ldap_group_conf = @config[:ldap_groups]
 
     groups = []
-    res = @ldap.search(:base => ldap_group_conf[:base], :filter => ldap_group_conf[:filter]) do |entry|
-      name = entry[ldap_group_conf[:name_attribute]].first
+    for ldap_group in ldap_group_conf
+      ldap_group = Hash[ldap_group.map{|k,v| [k.to_sym, v]}]
+      res = @ldap.search(:base => ldap_group[:base], :filter => ldap_group[:filter]) do |entry|
+        name = entry[ldap_group[:name_attribute]].first
 
-      unless name
-        log.warn "user attribute #{ldap_group_conf[:name_attribute].inspect} not defined for #{entry.dn}"
-        next
-      end
-      name.downcase! if ldap_group_conf[:lowercase_name]
+        unless name
+          log.warn "user attribute #{ldap_group[:name_attribute].inspect} not defined for #{entry.dn}"
+          next
+        end
+        name.downcase! if ldap_group[:lowercase_name]
 
-      log.info "found group-dn: #{entry.dn}"
-      group = LdapRole.new name, entry.dn, entry[ldap_group_conf[:member_attribute]]
-      groups << group
-      entry.each do |attribute, values|
-        log.debug "   #{attribute}:"
-        values.each do |value|
-          log.debug "      --->#{value.inspect}"
+        log.info "found group-dn: #{entry.dn}"
+        group = LdapRole.new name, entry.dn, entry[ldap_group[:member_attribute]]
+        groups << group
+        entry.each do |attribute, values|
+          log.debug "   #{attribute}:"
+          values.each do |value|
+            log.debug "      --->#{value.inspect}"
+          end
         end
       end
     end
@@ -149,7 +152,7 @@ class Application
     groups = []
     res = pg_exec "SELECT rolname, oid FROM pg_roles WHERE #{pg_groups_conf[:filter]}"
     res.each do |tuple|
-      res2 = pg_exec "SELECT pr.rolname FROM pg_auth_members pam JOIN pg_roles pr ON pr.oid=pam.member WHERE pam.roleid=#{PGconn.escape(tuple[1])}"
+      res2 = pg_exec "SELECT pr.rolname FROM pg_auth_members pam JOIN pg_roles pr ON pr.oid=pam.member WHERE pam.roleid=#{PG:Connection.escape(tuple[1])}"
       member_names = res2.map{|row| row[0] }
       group = PgRole.new tuple[0], member_names
       log.info{ "found pg-group: #{group.name.inspect} with members: #{member_names.inspect}"}
@@ -225,7 +228,10 @@ class Application
 
   def create_pg_role(role)
     pg_conf = @config[role.type==:user ? :pg_users : :pg_groups]
-    pg_exec_modify "CREATE ROLE \"#{role.name}\" #{pg_conf[:create_options]}"
+    res = pg_exec "SELECT COUNT(rolname) FROM pg_roles WHERE rolname = '#{PG::Connection.escape(role.name)}'"
+    if res[0].include?("0")
+      pg_exec_modify "CREATE ROLE \"#{role.name}\" #{pg_conf[:create_options]}"
+    end
   end
 
   def drop_pg_role(role)
@@ -314,7 +320,7 @@ class Application
     ldap_groups = uniq_names search_ldap_groups
 
     # gather PGs users and groups
-    @pgconn = PGconn.connect @config[:pg_connection]
+    @pgconn = PG:connection.open @config[:pg_connection]
     pg_users = uniq_names search_pg_users
     pg_groups = uniq_names search_pg_groups
 
